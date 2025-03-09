@@ -1,4 +1,4 @@
-import { Moment } from "./moment";
+import { Moment } from "./utils";
 import type { RateLimiterImpl, RateLimiterStorage } from "./types";
 
 const RESET_AFTER = Moment.from("1h");

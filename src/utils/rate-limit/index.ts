@@ -4,5 +4,4 @@ export * from "./sliding-window";
 export * from "./database-storage";
 export * from "./memory-storage";
 export * from "./types";
-export * from "./utils";
-export * from "./moment";
+export * from "./utils/";

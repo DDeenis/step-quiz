@@ -2,10 +2,10 @@ import "server-only";
 import { testFormSchema, type TestFormType } from "@/utils/forms/test-form";
 import { db } from ".";
 import { questions, tests } from "./schema";
-import { conflictUpdateAllExcept, slugify, sqlNow } from "./utils";
+import { slugify, sqlNow } from "./utils";
 import { getRandomPattern } from "@/utils/patterns";
 import type { TestUpdateObject, Test, ImageOrPattern } from "@/types/test";
-import { eq, inArray, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { emptyQuestionValues } from "./question";
 import { getUserFromDb } from "./user";
 import { TEACHER_MAX_TESTS } from "@/utils/constants";
@@ -159,9 +159,6 @@ export async function updateTest(testId: string, values: TestUpdateObject) {
     .select({
       name: tests.name,
       slug: tests.slug,
-      questionsIds: sql`json_group_array(${questions.id})`.mapWith<
-        (value: string) => string[]
-      >(JSON.parse),
     })
     .from(tests)
     .leftJoin(questions, eq(tests.id, questions.testId))
@@ -171,65 +168,24 @@ export async function updateTest(testId: string, values: TestUpdateObject) {
 
   if (!currentTestValues) throw new Error("Test now found");
 
-  const currentQuestionsIds = new Set(currentTestValues.questionsIds);
-  const updatedQuestionsIds = new Set(
-    values.questions.filter((q) => q.id !== undefined).map((q) => q.id)
-  );
-  const deletedQuestions = Array.from(
-    currentQuestionsIds.difference(updatedQuestionsIds)
-  );
-
-  return db.transaction(async (tx) => {
-    const testResult = await tx
-      .update(tests)
-      .set({
-        name: values.name,
-        slug:
-          currentTestValues.name === values.name
-            ? currentTestValues.slug
-            : slugify(values.name, { maxChars: 255 }),
-        description: values.description,
-        minimumCorrectAnswers: values.minimumCorrectAnswers,
-        questionsCount: values.questionsCount,
-        attempts: values.attempts,
-        autoScore: values.autoScore,
-        timeInMinutes: values.timeInMinutes,
-      })
-      .returning();
-    const updatedTest = testResult[0];
-
-    if (!updatedTest) {
-      return tx.rollback();
-    }
-
-    const questionsToUpsert = values.questions.map((q) => ({
-      id: q.id,
-      testId: updatedTest.id,
-      name: q.name,
-      description: q.description,
-      questionType: q.questionType,
-      answers: q.answers,
-      //   TODO: implement image upload
-      image: undefined,
-    }));
-    const questionsResult = await tx
-      .insert(questions)
-      .values(questionsToUpsert)
-      .onConflictDoUpdate({
-        target: questions.id,
-        set: conflictUpdateAllExcept(questions, ["id"]),
-      })
-      .returning();
-
-    if (deletedQuestions.length) {
-      await tx.delete(questions).where(inArray(questions.id, deletedQuestions));
-    }
-
-    return {
-      ...updatedTest,
-      questions: questionsResult,
-    };
-  });
+  return db
+    .update(tests)
+    .set({
+      name: values.name,
+      slug:
+        currentTestValues.name === values.name
+          ? currentTestValues.slug
+          : slugify(values.name, { maxChars: 255 }),
+      description: values.description,
+      minimumCorrectAnswers: values.minimumCorrectAnswers,
+      questionsCount: values.questionsCount,
+      attempts: values.attempts,
+      autoScore: values.autoScore,
+      timeInMinutes: values.timeInMinutes,
+    })
+    .where(eq(tests.id, testId))
+    .returning()
+    .then((r) => r[0]!);
 }
 
 export const deleteTest = async (id: string): Promise<boolean> => {

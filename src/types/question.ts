@@ -20,9 +20,7 @@ export type QuestionCreateObject = Pick<
   "name" | "description" | "image" | "questionType" | "answers"
 >;
 
-export type QuestionUpdateObject = QuestionCreateObject & {
-  id?: string;
-};
+export type QuestionUpdateObject = QuestionCreateObject;
 
 export enum QuestionType {
   SingleVariant = "singleVariant",
